@@ -261,3 +261,128 @@ module.exports = routes;
 
 Now it's a good idea to check the refactoring by using an API design platform (such as Insomnia or Postman), to list all users and verify if still works as before.
 
+***
+
+Hereon we will finalize the CRUD functionalities. Let's first habilitate JSON reading in our server. add the following to our app.use section of code:
+
+```bash
+app.use(express.json());
+```
+
+In the UserController.js file, we add our second function assigned to module.exports:
+
+```
+async create(request, response, next) {
+
+    const { username } = request.body;
+
+    await knex('users').insert({
+        username
+    });
+},
+```
+
+Improving our code, for dealing with errors, we may add a try & catch feature:
+
+```
+async create(request, response, next) {
+    try {
+        const { username } = request.body;
+
+        await knex('users').insert({
+            username
+        });
+
+        return response.status(201).send();
+    } catch (error) {
+        next(error);
+    }
+},
+```
+
+Let's go ahead and keep a "catch all" errors feature in our server:
+
+```
+app.use((error,request,response,next) => {
+    response.status(error.status || 500);
+    response.json( {error: error.message} );
+});
+```
+
+In your routes.js file add:
+
+```
+routes
+    .get('/users', UserController.index)
+    .post('/users', UserController.create)
+```
+
+Our create user route is done. We can test it, along with the errors treatments in Insomnia or Postman. 
+
+Now let's build the update route. In the UserController.js file, we add our third function assigned to module.exports:
+
+```
+async update(request, response, next) {
+    try {
+        const {username} = request.body;
+        const {id} = request.params;
+
+        await knex('users')
+            .update({username})
+            .where({id})
+
+        return response.send();
+
+    } catch (error) {
+        next(error);
+    }
+},
+```
+
+Whereas in routes.js we add:
+
+```
+routes
+    .get('/users', UserController.index)
+    .post('/users', UserController.create)
+    .put('/users/:id', UserController.update)
+```
+
+Testing this route (with Insomnia) we choose the id to update by the end of the http address, for instance, the following will update user 2:
+
+```
+http://localhost:3333/users/2
+```
+
+To finish our CRUD we create the delete route. In the UserController.js file, we add our fourth function assigned to module.exports:
+
+```
+async delete(request, response, next) {
+    try {
+        const {id} = request.params;
+
+        await knex('users')
+            .where({id})
+            .del()
+
+        return response.send();
+    } catch (error) {
+        next(error);   
+    }
+}
+```
+
+Routes.js becomes:
+
+```
+routes
+    .get('/users', UserController.index)
+    .post('/users', UserController.create)
+    .put('/users/:id', UserController.update)
+    .delete('/users/:id', UserController.delete)
+```
+
+Again we can test it in Insomnia making sure to add, by the end of the http address, the number referring to the id we want to delete. 
+
+***
+
