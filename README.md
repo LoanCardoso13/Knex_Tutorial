@@ -1,99 +1,263 @@
-Knex Tutorial
+<h1 align='center'>KnexJS Tutorial</h1>
 
-Initialize project with nodemon (development) and express.
+This tutorial makes use of global installations of NodeJS and Postgres. An API design platform such as Insomnia or Postman is highly recommended. We will create an API that shall have users CRUD and projects owned by users.
 
-Install knex and postgres dependencies.
+You should have a Postgres user with a password in your machine (you may refer to a Postgres tutorial for that). Commonly the user name is postgres. Create a database for your project. In this case it's knex_practice database. Initialize the project in your root directory by running: 
 
-Create the knexfile:
+```bash
+npm init -y
+```
+
+Install nodemon as a development dependency:
+
+
+```bash
+npm i nodemon -D
+```
+
+If using git make sure you add a .gitignore file containing:
+
+```bash
+node_modules/
+```
+
+Install the project's dependencies:
+
+```bash
+npm i knex pg express
+```
+
+Create an src folder and server.js file within it. configure your package.json to have:
+
+```bash
+"main": "src/server.js",
+  "scripts": {
+    "start": "nodemon src/server.js"
+  },
+```
+
+In your server.js file, write:
+
+```bash
+const express = require('express');
+const app = express();
+
+app.listen(3333, () => {
+    console.log('server is running');
+});
+```
+
+To run your server, preferably at a dedicated terminal:
+
+```bash
+npm start
+```
+
+Create the knexfile.js at the root by running the command:
+
+```bash
 npx knex init
+```
 
-Configure it. In this case, for Postgres: 
+In knexfile.js you may delete staging and production entries. Configuring the development entry for Postgres: 
 
-Create a Postgres database for your project. In this case it's knex_practice.
 
-Migrations
+```bash
+  development: {
+    client: 'pg',
+    connection: {
+      user: 'postgres',
+      password: '0000',
+      database: 'knex_practice'
+    },
+```
+
+<h1>Migrations</h1>
+
 Add to the knexfile a configuration for migrations:
+
+```bash
 migrations: {
-      tableName: 'practice_migrations',
       directory: `${__dirname}/src/database/migrations`
     }
-Now create the migration file:
-npx knex migrate:make create_table_users
+```
 
-In the file that was created (within migrations directory) make the function assigned to exports.up return the following:
+It will ensure a database directory is created. It will contain a migrations folder and an automatically generated migration file after you run the following command:
+
+```bash
+npx knex migrate:make create_table_users
+```
+
+In the generated file the function assigned to exports.up should return the following:
+
+```bash
 knex.schema.createTable('users', table => {
     table.increments('id');
     table.text('username').unique().notNullable();
 
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
-Make exports.down function return:
+```
+
+While exports.down function should return:
+
+```bash
 knex.schema.dropTable('users');
+```
+
+In the end the file ending with "..._create_table_users.js" should be contain the code:
+
+```bash
+
+exports.up = knex => knex.schema.createTable('users', table => {
+    table.increments('id');
+    table.text('username').unique().notNullable();
+
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
+});
+
+exports.down = knex => knex.schema.dropTable('users');
+```
+
+This is the purpose of KnexJS: to substitute raw SQL language by JavaScript and make it generalizable to all kinds of SQL languages. So someone running a database in sqlite3 can share code without much ado with another person that runs it in MySQL, for instance.
 
 Now run:
-npx knex migrate:latest
 
-Seeding
-Add to the knexfile a configuration for seeds:
+```bash
+npx knex migrate:latest
+```
+
+You should have a users table in your database. You may log into your Postgres user and check the tables of your database to confirm (you may refer to a Postgres tutorial for that).
+
+<h1>Seeding</h1>
+
+Now it's time to populate the table we created. Add to the knexfile a configuration for seeds:
+
+```bash
 seeds: {
       directory: `${__dirname}/src/database/seeds`
     }
+```
+
 Now create a seeds file:
+
+```bash
 npx knex seed:make 001_users
+```
 
-In the file that was created (within seeds directory) write the name of the table, users, in both places and insert 2 user names. For example:
+The digits are important to keep the seed files in the correct order, this time Knex doesn't do automatically for us such as when creating the migration file. In the file that was created (within seeds directory), "001_users.js", write the name of the table, "users", in both places and insert 2 user names of your preference. For example:
 
+```bash
 exports.seed = function(knex) {
   // Deletes ALL existing entries
   return knex('users').del()
     .then(function () {
       // Inserts seed entries
       return knex('users').insert([
-        {username: 'maykbrito'},
-        {username: 'diegosf'}
+        {username: 'Joe'},
+        {username: 'Junior'}
       ]);
     });
 };
+```
 
 Now run:
-npx knex seed:run
 
-In the database directory, create an index.js file to export knex: 
+```bash
+npx knex seed:run
+```
+
+You should now have the user names you chose (here 'Joe' and 'Junior') in your table. You may log into your Postgres user and check to confirm (you may refer to a Postgres tutorial for that).
+
+***
+<br>
+
+Now let's work on the structure of our project's files. In the database directory, create an index.js file to export knex:
+
+```bash
 const knexfile = require('../../knexfile');
 const knex = require('knex')(knexfile.development);
 
-module.exports = knex
+module.exports = knex;
+```
+We will import knex and create a get route (/users) that connects to our knex through a promise and list the users of our table. The resulting server.js should look like this:
 
-Import knex in server.js (?) and create a get route with a knex promise:
-knex('users').then( results => {
-    response.json(results);
+```bash
+const express = require('express');
+const knex = require('knex');
+
+const app = express();
+
+app.get('/users', (request, response) => {
+    knex('users').then( results => response.json(results));
 });
-Now, using an API design platform such as Insomnia or Postman, you can list all users.
 
-Develop architecture:
-1) create src/routes.js:
-in server.js, add the following:
-const routes = require('./routes');
-app.use(routes)
-in routes.js import express and knex and add:
+app.listen(3333, () => {
+    console.log('server is running');
+});
+```
+
+Now, with Insomnia or Postman, you can list all users.
+
+Let's refine our software architecture. Within src folder (same folder that contains server.js) we create a routes.js file with the following code:
+
+```bash
+const express = require('express');
+const knex = require('knex');
+
 const routes = express.Router();
-routes.get('users', (request, response) => 
-    knex('users').then( results => response.json(results))
-)
-module.exports = routes
 
-2) In src/controllers/UserController.js :
-import knex
+routes.get('/users', (request, response) => {
+    knex('users').then( results => response.json(results));
+});
+
+module.exports = routes;
+```
+
+Your server.js file should change accordingly:
+
+```bash
+const express = require('express');
+const routes = require('./routes');
+
+const app = express();
+
+app.use(routes);
+
+app.listen(3333, () => {
+    console.log('server is running');
+});
+```
+
+Now let's create a controllers directory inside src folder for the callback functions of our routes. Inside controllers we write a UserController.js containing the following:
+
+```bash
+const knex = require('../database');
+
 module.exports = {
     async index(request, response) {
         const results = await knex('users');
+
         return response.json(results);
-    }
+    },
 }
+```
 
-In src/routes :
-const UserController = require('./controller/UserController');
-routes.get('/users', UserController.index);
+Your routes.js file should change accordingly:
 
-Now it's a good idea to check the refactoring by using an API design platform such as Insomnia or Postman, to list all users and verify if still works as before.
+```bash
+const express = require('express');
+const routes = express.Router();
+
+const UserController = require('./controllers/UserController');
+
+routes
+    .get('/users', UserController.index)
+
+
+module.exports = routes;
+```
+
+Now it's a good idea to check the refactoring by using an API design platform (such as Insomnia or Postman), to list all users and verify if still works as before.
 
