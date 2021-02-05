@@ -386,3 +386,243 @@ Again we can test it in Insomnia making sure to add, by the end of the http addr
 
 ***
 
+Now, to create a projects table, run:
+
+```
+npx knex migrate:make create_projects_table
+```
+
+We create this table relating users to projects as 1 to n, that is, each user might have many projects. The code of the newly generated file then should be:
+
+```
+exports.up = knex => knex.schema.createTable('projects', table => {
+    table.increments('id');
+    table.text('title');
+
+    table.integer('user_id')
+        .references('users.id')
+        .notNullable()
+        .onDelete('CASCADE');
+
+    table.timestamp(true, true);
+});
+
+exports.down = knex => knex.schema.dropTable('projects');
+```
+
+Table's timestamp is written differently but should behave similarly. To migrate we run:
+
+```
+npx knex migrate:latest
+```
+
+Now create the seed file:
+
+```
+npx knex seed:make 002_projects
+```
+
+Edit so it becomes:
+
+```
+exports.seed = function(knex) {
+  // Deletes ALL existing entries
+  return knex('projects').del()
+    .then(function () {
+      // Inserts seed entries
+      return knex('projects').insert([
+        {
+          user_id: 2,
+          title: "my project"
+        }
+      ]);
+    });
+};
+```
+
+Choose an id that exists in your database. In this case I chose 2, but yours could be different. Running the seed file we should be careful not to erase the previous user. Knex automatically runs 001_users if you do not specify otherwise. This would delete and create new users. So run the command:
+
+```
+npx knex seed:run --specific 002_projects
+```
+
+We now write a ProjectController.js file with the content:
+
+```
+const knex = require('../database');
+
+module.exports = {
+    async index(request, response, next) {
+        try {
+            const results = await knex('projects');
+
+            return response.json(results);
+        } catch (error) {
+            next(error);        
+        }
+    },
+}
+```
+
+And change our routes.js file accordingly:
+
+```
+const express = require('express');
+const routes = express.Router();
+
+const UserController = require('./controllers/UserController');
+const ProjectController = require('./controllers/ProjectController');
+
+routes
+    .get('/users', UserController.index)
+    .post('/users', UserController.create)
+    .put('/users/:id', UserController.update)
+    .delete('/users/:id', UserController.delete)
+
+    .get('/projects', ProjectController.index);
+
+module.exports = routes;
+```
+
+***
+
+We can still refine our back-end. By adding the following code to our index function of the ProjectController.js file:
+
+```
+async index(request, response, next) {
+    try {
+        const { user_id } = request.query;
+
+        const query = knex('projects');
+
+        if (user_id) {
+            query.where({ user_id })
+        }
+
+        results = await query;
+
+        return response.json(results);
+    } catch (error) {
+        next(error);        
+    }
+},
+```
+
+We can list projects from specific users through the http address by writing its number in the address itself. For instance, this request:
+
+```
+http://localhost:3333/projects?user_id=3
+```
+
+Will list only the projects of user with id 3. It could be interesting to return the name of the user as well. For that we edit our if clause inside index function in ProjectController.js to:
+
+```
+if (user_id) {
+    query
+        .where({ user_id })
+        .join('users', 'users.id', '=', 'projects.user_id')
+        .select('projects.*', 'users.username');
+}
+```
+
+Checking with Insomnia we'll see the username being returned as well.
+
+To create new projects we add in module.exports function of ProjectController.js: 
+
+```
+async create(request, response, next) {
+    try {
+        const {title, user_id} = request.body;
+
+        await knex('projects').insert({
+            title,
+            user_id
+        });
+
+        return response.status(201).send();
+    } catch (error) {
+        next(error);
+    }
+}
+```
+
+And provide the route:
+
+```
+routes
+    .get('/users', UserController.index)
+    .post('/users', UserController.create)
+    .put('/users/:id', UserController.update)
+    .delete('/users/:id', UserController.delete)
+
+    .get('/projects', ProjectController.index)
+    .post('/projects', ProjectController.create)
+```
+
+Turn on Insomnia and create many projects for one user. You may then list the projects for this user, as explained above, and be filled with a screen full of clone projects - as many as you clicked the button. It would be a good idea to add pages for easiness of consulting the data. To do this we extract the page variable in our query at index function of ProjectController.js, while leaving the default value of 1. We also limit the appearances per page and create offset accordingly:
+
+```
+    async index(request, response, next) {
+        try {
+            const { user_id, page = 1 } = request.query;
+
+            const query = knex('projects')
+                .limit(5)
+                .offset((page - 1) * 5)
+
+            if (user_id) {
+                query
+                    .where({ user_id })
+                    .join('users', 'users.id', '=', 'projects.user_id')
+                    .select('projects.*', 'users.username');
+            }
+
+            results = await query;
+
+            return response.json(results);
+        } catch (error) {
+            next(error);        
+        }
+    },
+```
+
+Now by including the page number at the http request we control paging. This will get id's from 6 to 10 (if available):
+
+```
+http://localhost:3333/projects?page=2
+```
+
+You may count the number of projects and send it as a header:
+
+```
+async index(request, response, next) {
+    try {
+        const { user_id, page = 1 } = request.query;
+
+        const countObj = knex('projects').count();
+
+        const query = knex('projects')
+            .limit(5)
+            .offset((page - 1) * 5)
+
+        if (user_id) {
+            query
+                .where({ user_id })
+                .join('users', 'users.id', '=', 'projects.user_id')
+                .select('projects.*', 'users.username');
+
+            countObj
+                .where({user_id});
+        }
+
+        const [count] = await countObj;
+        response.header('X-Total-Count', count["count"]);
+
+        results = await query;
+
+        return response.json(results);
+    } catch (error) {
+        next(error);        
+    }
+},
+```

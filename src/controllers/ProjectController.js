@@ -3,11 +3,46 @@ const knex = require('../database');
 module.exports = {
     async index(request, response, next) {
         try {
-            const results = await knex('projects');
+            const { user_id, page = 1 } = request.query;
+
+            const countObj = knex('projects').count();
+
+            const query = knex('projects')
+                .limit(5)
+                .offset((page - 1) * 5)
+
+            if (user_id) {
+                query
+                    .where({ user_id })
+                    .join('users', 'users.id', '=', 'projects.user_id')
+                    .select('projects.*', 'users.username');
+
+                countObj
+                    .where({user_id});
+            }
+
+            const [count] = await countObj;
+            response.header('X-Total-Count', count["count"]);
+
+            results = await query;
 
             return response.json(results);
         } catch (error) {
             next(error);        
         }
     },
+    async create(request, response, next) {
+        try {
+            const {title, user_id} = request.body;
+
+            await knex('projects').insert({
+                title,
+                user_id
+            });
+
+            return response.status(201).send();
+        } catch (error) {
+            next(error);
+        }
+    }
 }
