@@ -410,7 +410,7 @@ exports.up = knex => knex.schema.createTable('projects', table => {
 exports.down = knex => knex.schema.dropTable('projects');
 ```
 
-Table's timestamp is written differently but should behave similarly. To migrate we run:
+It is tied to the users table in a way that each user may have many projects and the on delete cascade feature ensures that if user is deleted then his projects are as well. Table's timestamp is written differently but should behave similarly. To migrate we run:
 
 ```
 npx knex migrate:latest
@@ -626,3 +626,98 @@ async index(request, response, next) {
     }
 },
 ```
+
+***
+
+To make create a soft delete feature we first make a new migration file:
+
+```
+npx knex migrate:make add_column_deleted_at_to_users
+```
+
+Edit it to alter the users table with the timestamp of deletion:
+
+```
+exports.up = knex => knex.schema.alterTable('users', table => {
+    table.timestamp('deleted_at');
+});
+
+exports.down = knex => knex.schema.alterTable('users', table => {
+    table.dropColumn('deleted_at');
+});
+```
+
+Now run the migration:
+
+```
+npx knex migrate:latest
+```
+
+Now we need to change the UserController.js in order not to actually delete a data instance when the user deletes it, but instead updating it with our deletion stamp. The new delete function then becomes:
+
+```
+async delete(request, response, next) {
+    try {
+        const {id} = request.params;
+
+        await knex('users')
+            .where({id})
+            .update('deleted_at', new Date())
+            // .del()
+
+        return response.send();
+    } catch (error) {
+        next(error);   
+    }
+}
+```
+
+You may check with Insomnia that the users' "deleted_at" flag toggles between null (when the user have not been deleted) and the stamp with the time of deletion. We then change the index function of UserController.js in order not to list users stamped with deletion:
+
+```
+async index(request, response) {
+    const results = await knex('users')
+        .where('deleted_at', null);
+
+    return response.json(results);
+},
+```
+
+You can check with Insomnia that listing users doesn't show those softly deleted. We still need to make changes to regard for the on delete cascade feature that ensured projects couldn't exist without users. To do that we change index function of ProjectController.js to add a condition in our query:
+
+```
+async index(request, response, next) {
+    try {
+        const { user_id, page = 1 } = request.query;
+
+        const countObj = knex('projects').count();
+
+        const query = knex('projects')
+            .limit(5)
+            .offset((page - 1) * 5)
+
+        if (user_id) {
+            query
+                .where({ user_id })
+                .join('users', 'users.id', '=', 'projects.user_id')
+                .select('projects.*', 'users.username')
+                .where('users.deleted_at', null);
+
+            countObj
+                .where({user_id});
+        }
+
+        const [count] = await countObj;
+        response.header('X-Total-Count', count["count"]);
+
+        results = await query;
+
+        return response.json(results);
+    } catch (error) {
+        next(error);        
+    }
+},
+```
+
+***
+
