@@ -721,3 +721,126 @@ async index(request, response, next) {
 
 ***
 
+There's something to be perfected in our back-end. If you update a user name you'll see the updated_at flag doesn't change. To fix it we'll use procedures and triggers. 
+
+We start by creating a new migrate:
+
+```
+npx knex migrate:make add_custom_functions
+```
+
+We then rename the newly created migration file, changing the date represented by the numbers to be one month older, for instance, in order to put it on top of our migrations folder. We also edit it with raw SQL queries so that it becomes:
+
+```
+const CUSTOM_FUNCTIONS = `
+CREATE OR REPLACE FUNCTION on_update_timestamp()
+RETURNS trigger AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+`
+
+const DROP_CUSTOM_FUNCTIONS = `
+DROP FUNCTION on_update_timestamp()
+`
+
+exports.up = async knex => knex.raw(CUSTOM_FUNCTIONS)
+exports.down = async knex => knex.raw(DROP_CUSTOM_FUNCTIONS)
+```
+
+But we need to reset our database since we didn't have this file when we started:
+
+```
+npx knex migrate:rollback --all
+```
+
+And run migrations it again:
+
+```
+npx knex migrate:latest
+```
+
+All your users have been deleted. Seed it again:
+
+```
+npx knex seed:run
+```
+
+Change knexfile.js to:
+
+```
+module.exports = {
+
+  development: {
+    client: 'pg',
+    version: '8.5.1',
+    connection: {
+      host: 'localhost',
+      user: 'postgres',
+      password: '0000',
+      database: 'knex_practice'
+    },
+    migrations: {
+      tableName: 'practice_migrations',
+      directory: `${__dirname}/src/database/migrations`
+    },
+    seeds: {
+      directory: `${__dirname}/src/database/seeds`
+    }
+  },
+  onUpdateTrigger: table => `
+  CREATE TRIGGER ${table}_updated_at
+  BEFORE UPDATE ON ${table}
+  FOR EACH ROW
+  EXECUTE PROCEDURE on_update_timestamp();
+  `
+};
+```
+
+The create user table migration then becomes:
+
+```
+const { onUpdateTrigger } = require("../../../knexfile");
+
+exports.up = async knex => knex.schema.createTable('users', table => {
+    table.increments('id');
+    table.text('username').unique().notNullable();
+
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
+}).then(() => knex.raw(onUpdateTrigger('users')));
+
+exports.down = async knex => knex.schema.dropTable('users');
+```
+
+And project table migration similarly:
+
+```
+const { onUpdateTrigger } = require("../../../knexfile");
+
+exports.up = async knex => knex.schema.createTable('projects', table => {
+    table.increments('id');
+    table.text('title');
+
+    table.integer('user_id')
+        .references('users.id')
+        .notNullable()
+        .onDelete('CASCADE');
+
+    table.timestamp(true, true);
+}).then(() => knex.raw(onUpdateTrigger('projects')));
+
+exports.down = async knex => knex.schema.dropTable('projects');
+```
+
+Running the commands:
+
+```
+npx knex migrate:rollback --all
+npx knex migrate:latest
+npx knex seed:run
+```
+
+Now the updated_at flag will reflect updated performed, using Insomnia with the update user and list users routes created you can check that. 
