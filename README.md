@@ -29,7 +29,7 @@ npm i knex pg express
 
 Create an src folder and server.js file within it. configure your package.json to have:
 
-```bash
+```json
 "main": "src/server.js",
   "scripts": {
     "start": "nodemon src/server.js"
@@ -38,7 +38,7 @@ Create an src folder and server.js file within it. configure your package.json t
 
 In your server.js file, write:
 
-```bash
+```javascript
 const express = require('express');
 const app = express();
 
@@ -62,7 +62,7 @@ npx knex init
 In knexfile.js you may delete staging and production entries. Configuring the development entry for Postgres: 
 
 
-```bash
+```javascript
   development: {
     client: 'pg',
     connection: {
@@ -74,9 +74,9 @@ In knexfile.js you may delete staging and production entries. Configuring the de
 
 <h1>Migrations</h1>
 
-Add to the knexfile a configuration for migrations:
+Add to the knexfile.js a configuration for migrations:
 
-```bash
+```javascript
 migrations: {
       directory: `${__dirname}/src/database/migrations`
     }
@@ -90,7 +90,7 @@ npx knex migrate:make create_table_users
 
 In the generated file the function assigned to exports.up should return the following:
 
-```bash
+```javascript
 knex.schema.createTable('users', table => {
     table.increments('id');
     table.text('username').unique().notNullable();
@@ -101,13 +101,13 @@ knex.schema.createTable('users', table => {
 
 While exports.down function should return:
 
-```bash
+```javascript
 knex.schema.dropTable('users');
 ```
 
 In the end the file ending with "..._create_table_users.js" should be contain the code:
 
-```bash
+```javascript
 
 exports.up = knex => knex.schema.createTable('users', table => {
     table.increments('id');
@@ -132,9 +132,9 @@ You should have a users table in your database. You may log into your Postgres u
 
 <h1>Seeding</h1>
 
-Now it's time to populate the table we created. Add to the knexfile a configuration for seeds:
+Now it's time to populate the table we created. Add to the knexfile.js a configuration for seeds:
 
-```bash
+```javascript
 seeds: {
       directory: `${__dirname}/src/database/seeds`
     }
@@ -148,7 +148,7 @@ npx knex seed:make 001_users
 
 The digits are important to keep the seed files in the correct order, this time Knex doesn't do automatically for us such as when creating the migration file. In the file that was created (within seeds directory), "001_users.js", write the name of the table, "users", in both places and insert 2 user names of your preference. For example:
 
-```bash
+```javascript
 exports.seed = function(knex) {
   // Deletes ALL existing entries
   return knex('users').del()
@@ -175,7 +175,7 @@ You should now have the user names you chose (here 'Joe' and 'Junior') in your t
 
 Now let's work on the structure of our project's files. In the database directory, create an index.js file to export knex:
 
-```bash
+```javascript
 const knexfile = require('../../knexfile');
 const knex = require('knex')(knexfile.development);
 
@@ -183,7 +183,7 @@ module.exports = knex;
 ```
 We will import knex and create a get route (/users) that connects to our knex through a promise and list the users of our table. The resulting server.js should look like this:
 
-```bash
+```javascript
 const express = require('express');
 const knex = require('knex');
 
@@ -202,7 +202,7 @@ Now, with Insomnia or Postman, you can list all users.
 
 Let's refine our software architecture. Within src folder (same folder that contains server.js) we create a routes.js file with the following code:
 
-```bash
+```javascript
 const express = require('express');
 const knex = require('knex');
 
@@ -217,7 +217,7 @@ module.exports = routes;
 
 Your server.js file should change accordingly:
 
-```bash
+```javascript
 const express = require('express');
 const routes = require('./routes');
 
@@ -232,7 +232,7 @@ app.listen(3333, () => {
 
 Now let's create a controllers directory inside src folder for the callback functions of our routes. Inside controllers we write a UserController.js containing the following:
 
-```bash
+```javascript
 const knex = require('../database');
 
 module.exports = {
@@ -246,7 +246,7 @@ module.exports = {
 
 Your routes.js file should change accordingly:
 
-```bash
+```javascript
 const express = require('express');
 const routes = express.Router();
 
@@ -262,16 +262,17 @@ module.exports = routes;
 Now it's a good idea to check the refactoring by using an API design platform (such as Insomnia or Postman), to list all users and verify if still works as before.
 
 ***
+<br>
 
 Hereon we will finalize the CRUD functionalities. Let's first habilitate JSON reading in our server. add the following to our app.use section of code:
 
-```bash
+```javascript
 app.use(express.json());
 ```
 
 In the UserController.js file, we add our second function assigned to module.exports:
 
-```bash
+```javascript
 async create(request, response, next) {
 
     const { username } = request.body;
@@ -284,7 +285,7 @@ async create(request, response, next) {
 
 Improving our code, for dealing with errors, we may add a try & catch feature:
 
-```bash
+```javascript
 async create(request, response, next) {
     try {
         const { username } = request.body;
@@ -302,7 +303,7 @@ async create(request, response, next) {
 
 Let's go ahead and keep a "catch all" errors feature in our server:
 
-```bash
+```javascript
 app.use((error,request,response,next) => {
     response.status(error.status || 500);
     response.json( {error: error.message} );
@@ -311,7 +312,7 @@ app.use((error,request,response,next) => {
 
 In your routes.js file add:
 
-```bash
+```javascript
 routes
     .get('/users', UserController.index)
     .post('/users', UserController.create)
@@ -321,7 +322,7 @@ Our create user route is done. We can test it, along with the errors treatments 
 
 Now let's build the update route. In the UserController.js file, we add our third function assigned to module.exports:
 
-```bash
+```javascript
 async update(request, response, next) {
     try {
         const {username} = request.body;
@@ -341,7 +342,7 @@ async update(request, response, next) {
 
 Whereas in routes.js we add:
 
-```bash
+```javascript
 routes
     .get('/users', UserController.index)
     .post('/users', UserController.create)
@@ -350,13 +351,13 @@ routes
 
 Testing this route (with Insomnia) we choose the id to update by the end of the http address, for instance, the following will update user 2:
 
-```bash
+```http
 http://localhost:3333/users/2
 ```
 
 To finish our CRUD we create the delete route. In the UserController.js file, we add our fourth function assigned to module.exports:
 
-```bash
+```javascript
 async delete(request, response, next) {
     try {
         const {id} = request.params;
@@ -374,7 +375,7 @@ async delete(request, response, next) {
 
 Routes.js becomes:
 
-```bash
+```javascript
 routes
     .get('/users', UserController.index)
     .post('/users', UserController.create)
@@ -385,6 +386,7 @@ routes
 Again we can test it in Insomnia making sure to add, by the end of the http address, the number referring to the id we want to delete. 
 
 ***
+<br>
 
 Now, to create a projects table, run:
 
@@ -394,7 +396,7 @@ npx knex migrate:make create_projects_table
 
 We create this table relating users to projects as 1 to n, that is, each user might have many projects. The code of the newly generated file then should be:
 
-```bash
+```javascript
 exports.up = knex => knex.schema.createTable('projects', table => {
     table.increments('id');
     table.text('title');
@@ -424,7 +426,7 @@ npx knex seed:make 002_projects
 
 Edit so it becomes:
 
-```bash
+```javascript
 exports.seed = function(knex) {
   // Deletes ALL existing entries
   return knex('projects').del()
@@ -448,7 +450,7 @@ npx knex seed:run --specific 002_projects
 
 We now write a ProjectController.js file with the content:
 
-```bash
+```javascript
 const knex = require('../database');
 
 module.exports = {
@@ -466,7 +468,7 @@ module.exports = {
 
 And change our routes.js file accordingly:
 
-```bash
+```javascript
 const express = require('express');
 const routes = express.Router();
 
@@ -485,10 +487,11 @@ module.exports = routes;
 ```
 
 ***
+<br>
 
 We can still refine our back-end. By adding the following code to our index function of the ProjectController.js file:
 
-```bash
+```javascript
 async index(request, response, next) {
     try {
         const { user_id } = request.query;
@@ -510,13 +513,13 @@ async index(request, response, next) {
 
 We can list projects from specific users through the http address by writing its number in the address itself. For instance, this request:
 
-```bash
+```http
 http://localhost:3333/projects?user_id=3
 ```
 
 Will list only the projects of user with id 3. It could be interesting to return the name of the user as well. For that we edit our if clause inside index function in ProjectController.js to:
 
-```bash
+```javascript
 if (user_id) {
     query
         .where({ user_id })
@@ -529,7 +532,7 @@ Checking with Insomnia we'll see the username being returned as well.
 
 To create new projects we add in module.exports function of ProjectController.js: 
 
-```bash
+```javascript
 async create(request, response, next) {
     try {
         const {title, user_id} = request.body;
@@ -548,7 +551,7 @@ async create(request, response, next) {
 
 And provide the route:
 
-```bash
+```javascript
 routes
     .get('/users', UserController.index)
     .post('/users', UserController.create)
@@ -561,7 +564,7 @@ routes
 
 Turn on Insomnia and create many projects for one user. You may then list the projects for this user, as explained above, and be filled with a screen full of clone projects - as many as you clicked the button. It would be a good idea to add pages for easiness of consulting the data. To do this we extract the page variable in our query at index function of ProjectController.js, while leaving the default value of 1. We also limit the appearances per page and create offset accordingly:
 
-```bash
+```javascript
 async index(request, response, next) {
     try {
         const { user_id, page = 1 } = request.query;
@@ -588,13 +591,13 @@ async index(request, response, next) {
 
 Now by including the page number at the http request we control paging. This will get id's from 6 to 10 (if available):
 
-```bash
+```http
 http://localhost:3333/projects?page=2
 ```
 
 You may count the number of projects and send it as a header:
 
-```bash
+```javascript
 async index(request, response, next) {
     try {
         const { user_id, page = 1 } = request.query;
@@ -628,6 +631,7 @@ async index(request, response, next) {
 ```
 
 ***
+<br>
 
 To make create a soft delete feature we first make a new migration file:
 
@@ -637,7 +641,7 @@ npx knex migrate:make add_column_deleted_at_to_users
 
 Edit it to alter the users table with the timestamp of deletion:
 
-```bash
+```javascript
 exports.up = knex => knex.schema.alterTable('users', table => {
     table.timestamp('deleted_at');
 });
@@ -655,7 +659,7 @@ npx knex migrate:latest
 
 Now we need to change the UserController.js in order not to actually delete a data instance when the user deletes it, but instead updating it with our deletion stamp. The new delete function then becomes:
 
-```bash
+```javascript
 async delete(request, response, next) {
     try {
         const {id} = request.params;
@@ -674,7 +678,7 @@ async delete(request, response, next) {
 
 You may check with Insomnia that the users' "deleted_at" flag toggles between null (when the user have not been deleted) and the stamp with the time of deletion. We then change the index function of UserController.js in order not to list users stamped with deletion:
 
-```bash
+```javascript
 async index(request, response) {
     const results = await knex('users')
         .where('deleted_at', null);
@@ -685,7 +689,7 @@ async index(request, response) {
 
 You can check with Insomnia that listing users doesn't show those softly deleted. We still need to make changes to regard for the on delete cascade feature that ensured projects couldn't exist without users. To do that we change index function of ProjectController.js to add a condition in our query:
 
-```bash
+```javascript
 async index(request, response, next) {
     try {
         const { user_id, page = 1 } = request.query;
@@ -720,6 +724,7 @@ async index(request, response, next) {
 ```
 
 ***
+<br>
 
 There's something to be perfected in our back-end. If you update a user name you'll see the updated_at flag doesn't change. To fix it we'll use procedures and triggers. 
 
@@ -731,7 +736,7 @@ npx knex migrate:make add_custom_functions
 
 We then rename the newly created migration file, changing the date represented by the numbers to be one month older, for instance, in order to put it on top of our migrations folder. We also edit it with raw SQL queries so that it becomes:
 
-```bash
+```javascript
 const CUSTOM_FUNCTIONS = `
 CREATE OR REPLACE FUNCTION on_update_timestamp()
 RETURNS trigger AS $$
@@ -770,7 +775,7 @@ npx knex seed:run
 
 Change knexfile.js to:
 
-```bash
+```javascript
 module.exports = {
 
   development: {
@@ -801,7 +806,7 @@ module.exports = {
 
 The create user table migration then becomes:
 
-```bash
+```javascript
 const { onUpdateTrigger } = require("../../../knexfile");
 
 exports.up = async knex => knex.schema.createTable('users', table => {
@@ -817,7 +822,7 @@ exports.down = async knex => knex.schema.dropTable('users');
 
 And project table migration similarly:
 
-```bash
+```javascript
 const { onUpdateTrigger } = require("../../../knexfile");
 
 exports.up = async knex => knex.schema.createTable('projects', table => {
